@@ -1,0 +1,392 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RealtyRadar</title>
+
+    <!-- ===== CSS (with SRI placeholders – generate hashes at https://www.srihash.org/) ===== -->
+    <!-- Bootstrap 3.3.7 core (already includes valid SRI) -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <!-- Optional Bootstrap theme (already includes valid SRI) -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
+          integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+    <!-- jQuery UI (for the time dialog) -->
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css" 
+          integrity="sha384-xewr6kSkq3dBbEtB6Z/3oFZmknWn7nHqhLVLrYgzEFRbU/DHSxW7K3B44yWUN60D" crossorigin="anonymous">
+
+    <!-- Azure Search demo CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@microsoft/azsearch.js@0.0.21/dist/AzSearch.css" 
+          integrity="sha384-A4GRwkHIqaePcrwhXmW+Ie/Q1cPwV20Ma4G/dCn6CgIk91An1IAnpZ/RXRnTFHPB" crossorigin="anonymous">
+
+    <style>
+        /* ===== Basic layout polish ===== */
+        body {
+            padding-top: 70px;
+            background: #f7f7fb;
+        }
+
+        .navbar-inverse {
+            background: linear-gradient(90deg, #121826, #1f2942);
+            border: 0;
+        }
+
+            .navbar-inverse .navbar-brand {
+                color: #fff !important;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+            }
+
+                .navbar-inverse .navbar-brand:hover {
+                    opacity: .85;
+                }
+
+        /* Results cards */
+        #results .searchResults__result {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.06);
+            padding: 12px;
+            margin: 10px;
+        }
+
+        .searchResults__result h4 {
+            margin-top: 0;
+            text-transform: uppercase;
+            font-size: 14px;
+            letter-spacing: .5px;
+        }
+
+        .searchResults__result .resultDescription {
+            margin-top: .5em;
+            color: #333;
+        }
+
+        /* Facets panel background */
+        #facetPanel {
+            min-height: 100vh; /* full-height sidebar */
+            background-image: url('https://images.unsplash.com/photo-1502005229762-cf1b2da7c52f?q=80&w=1400&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
+            color: #000;
+        }
+
+            #facetPanel .nav {
+                background: rgba(0,0,0,.45);
+                border-radius: 6px;
+                padding: 10px;
+            }
+
+        #clearFilters .btn {
+            margin: 10px 0;
+        }
+
+        /* Utility areas */
+        .toolbar {
+            padding: 8px 0;
+            text-align: right;
+        }
+
+            .toolbar .btn {
+                margin-left: 8px;
+            }
+
+        #time {
+            display: none;
+            font-size: 46px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* Make search box breathe a little */
+        #searchBox input {
+            height: 38px !important;
+        }
+
+        /* Lucky mode helpers */
+        #results .lucky-hidden {
+            display: none !important;
+        }
+
+        #results .lucky-highlight {
+            outline: 2px solid #f0ad4e;
+            box-shadow: 0 0 0 3px rgba(240,173,78,.35);
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <nav class="navbar navbar-inverse navbar-fixed-top">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#facetPanel" aria-expanded="false" aria-controls="navbar">
+                        <span class="sr-only">Toggle navigation</span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                    <div class="row" style="width:100%; margin:0;">
+                        <div class="col-sm-3 pagelabel">
+                            <!-- Clicking this name cycles the background images -->
+                            <a class="navbar-brand pagelabel" href="#" id="brandName">RealtyRadar</a>
+                        </div>
+                        <div id="searchBox" class="col-sm-5"></div>
+                        <div class="col-sm-4 toolbar">
+                            <button id="btnLucky" class="btn btn-warning">I'm Feeling Lucky</button>
+                            <button id="btnShowAll" class="btn btn-default" style="display:none;">Show All</button>
+                            <button id="btnTime" class="btn btn-info">Show Time</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container-fluid">
+            <div class="row">
+                <div id="facetPanel" class="col-sm-3 col-md-3 sidebar collapse in">
+                    <div id="clearFilters"></div>
+                    <ul class="nav nav-sidebar">
+                        <li><div id="bedsFacet"></div></li>
+                        <li><div id="bathsFacet"></div></li>
+                        <li><div id="sqftFacet"></div></li>
+                        <li><div id="daysOnMarketFacet"></div></li>
+                        <li><div id="statusFacet"></div></li>
+                        <li><div id="typeFacet"></div></li>
+                        <li><div id="cityFacet"></div></li>
+                        <li><div id="regionFacet"></div></li>
+                        <li><div id="postCodeFacet"></div></li>
+                        <li><div id="priceFacet"></div></li>
+                        <li><div id="tagsFacet"></div></li>
+                    </ul>
+                </div>
+                <div class="col-sm-9 col-md-9 col-sm-offset-3 col-md-offset-3 results_section">
+                    <div id="results" class="row placeholders"></div>
+                    <div id="pager" class="row"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Time dialog content -->
+    <div id="time"></div>
+
+    <!-- ===== JS (with SRI placeholders – generate hashes at https://www.srihash.org/) ===== -->
+    <!-- jQuery 1.12.4 (use code.jquery.com here so the known SRI will match) -->
+    <script src="https://code.jquery.com/jquery-1.12.4.min.js"
+            integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ=" crossorigin="anonymous"></script>
+    <!-- Bootstrap 3.3.7 (already has valid SRI) -->
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+            integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+    <!-- jQuery UI (for the dialog) -->
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js" 
+            integrity="sha384-Dziy8F2VlJQLMShA6FHWNul/veM9bCkRUaLqr199K94ntO5QUrLJBEbYegdSkkqX" crossorigin="anonymous"></script>
+
+    <!-- React / Redux (used by azsearch.js under the hood) -->
+    <script src="https://cdn.jsdelivr.net/react/15.5.0/react.min.js" 
+            integrity="sha384-unua6Gv4M/M70BdLhkLiN8hgAL+jKt8Iiy6SFD9S0ywoRy+5zHVBuztpyEn0tAus" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/react/15.5.0/react-dom.min.js" 
+            integrity="sha384-mcKbn9HhTY6F3IhItyNmc8stlOpwMfyzy66GsAGSsjMpjAjvEWuE/bwDiMTR9P8f" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/redux/3.6.0/redux.min.js" 
+            integrity="sha384-vG6fds20q0bT+1dDKZMlWnQZM1Aic6HaVjyELCdGUDBZQpiKM3Zfm+R6DTUfUlB/" crossorigin="anonymous"></script>
+
+    <!-- Azure Search UI helper -->
+    <script src="https://cdn.jsdelivr.net/npm/@microsoft/azsearch.js@0.0.21/dist/AzSearch.bundle.js" 
+            integrity="sha384-L81tXpv1V/sogv+CuyItOpknRBiTHFDZlI/XQw1RY23xGj7bq64cD9B+U1HU5Dp2" crossorigin="anonymous"></script>
+
+    <script>
+    // =====================
+    // REQUIRED CONFIG: replace the placeholders below with values from your Azure AI Search service
+    // =====================
+    const serviceName = "bridgessp25mis521";
+    const dnsSuffix = "search.windows.net";
+    const indexName = "realestate-us-sample-index";
+    const apiKey = "sYUv9G79xOJQKkaPVUncwY8fmvtWmDag7Kll729mroAzSeAE7Kac";
+    const apiVersion = "2025-09-01"; // or a later version
+
+    // NOTE: For classroom/demo purposes only – placing a query key client-side is OK for this assignment.
+    // Make sure CORS is allowed for your origin in the Search service (Portal → Settings → CORS → add * or your domain).
+
+    // Initialize Automagic
+    var automagic = new AzSearch.Automagic({ index: indexName, queryKey: apiKey, service: serviceName, dnsSuffix: dnsSuffix });
+
+    // Results template
+        // Results template (quoted src + fallback + more fields)
+        const resultTemplate = `
+          <div class="col-xs-12 searchResults__result">
+            <div class="row">
+              <div class="col-xs-12 col-sm-9 col-md-9">
+                <h4 style="margin-bottom:6px;">{{city}}, {{region}} {{postCode}}</h4>
+                <div class="text-muted" style="margin-bottom:6px;">
+                  {{number}} {{street}}
+                </div>
+                <div><strong>$ {{price}}</strong> — {{beds}} bd • {{baths}} ba • {{sqft}} sqft</div>
+                <div class="resultDescription" style="margin-top:6px;">{{{description}}}</div>
+                <div class="text-muted" style="margin-top:6px;">Status: {{status}} • Days on market: {{daysOnMarket}}</div>
+              </div>
+            </div>
+          </div>`;
+
+
+    // Wire up AzSearch UI
+    automagic.addResults("results", { count: true }, resultTemplate);
+    automagic.addPager("pager");
+
+    automagic.store.setSuggestionsProcessor(function (results) {
+      return results.map(function (r) { r.searchText = r["@search.text"]; return r; });
+    });
+
+    const suggestionsTemplate = `<p>{{number}} {{street}} {{city}} {{region}} {{countryCode}}</p>{{{searchText}}}`;
+
+    automagic.addSearchBox("searchBox",
+      { highlightPreTag: "<b>", highlightPostTag: "</b>", suggesterName: "sg", select: "number,street,city,region,countryCode" },
+      "",
+      suggestionsTemplate
+    );
+
+    // Facets
+    automagic.addRangeFacet("bedsFacet", "beds", "number", 0, 10);
+    automagic.addRangeFacet("bathsFacet", "baths", "number", 0, 10);
+    automagic.addRangeFacet("sqftFacet", "sqft", "number", 0, 30000);
+    automagic.addRangeFacet("daysOnMarketFacet", "daysOnMarket", "number", 0, 365);
+    automagic.addCheckboxFacet("statusFacet", "status", "string");
+    automagic.addCheckboxFacet("typeFacet", "type", "string");
+    automagic.addCheckboxFacet("cityFacet", "city", "string");
+    automagic.addCheckboxFacet("regionFacet", "region", "string");
+    automagic.addCheckboxFacet("postCodeFacet", "postCode", "string");
+    automagic.addRangeFacet("priceFacet", "price", "number", 0, 10000000);
+    automagic.addCheckboxFacet("tagsFacet", "tags", "collection");
+    automagic.addClearFiltersButton("clearFilters");
+
+    // =====================
+    // Custom JS for assignment requirements
+    // =====================
+
+    // Background image cycler – click the brand name to change backgrounds
+    const bgImages = [
+      'https://images.unsplash.com/photo-1502005229762-cf1b2da7c52f?q=80&w=1600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1505691938895-1758d7feb511?q=80&w=1600&auto=format&fit=crop',
+      'https://images.unsplash.com/photo-1449844908441-8829872d2607?q=80&w=1600&auto=format&fit=crop'
+    ];
+    let bgIndex = 0;
+    function applyBackground() {
+      const url = bgImages[bgIndex % bgImages.length];
+      document.getElementById('facetPanel').style.backgroundImage = `url('${url}')`;
+    }
+    document.getElementById('brandName').addEventListener('click', function (e) {
+      e.preventDefault();
+      bgIndex = (bgIndex + 1) % bgImages.length; // cycles without page refresh
+      applyBackground();
+    });
+    applyBackground(); // set initial
+
+    // Time button – show HH:MM in a jQuery UI dialog
+    function getCurrentHHMM() {
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+    document.getElementById('btnTime').addEventListener('click', function () {
+      const timeText = getCurrentHHMM();
+      const $time = $('#time');
+      $time.text(timeText);
+      $time.dialog({ modal: true, title: 'Current Time', width: 320, close: function(){ $time.dialog('destroy'); } });
+    });
+
+        // BONUS: I'm Feeling Lucky – keep ONE random result visible from current results
+        function currentSearchParams() {
+            const st = (automagic && automagic.store && automagic.store.getState)
+                ? automagic.store.getState() : {};
+            return st.searchParameters || (st.search && st.search.parameters) || {};
+        }
+
+        async function searchPost(body) {
+            const url = `https://${serviceName}.${dnsSuffix}/indexes/${indexName}/docs/search?api-version=${apiVersion}`;
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            if (!resp.ok) throw new Error(`Search error ${resp.status}`);
+            return resp.json();
+        }
+
+        async function getMatchingCount() {
+            const sp = currentSearchParams();
+            const searchText = (sp.searchText && sp.searchText.trim() !== "") ? sp.searchText : "*";
+            const body = { search: searchText, count: true, top: 0, queryType: "simple" };
+            if (sp.filter) body.filter = sp.filter;
+            const data = await searchPost(body);
+            return (data && (data['@odata.count'] ?? data.count)) || 0;
+        }
+
+        // Put this right under your existing helpers
+        const LUCKY_ID = 'luckyResult';
+
+        // Lucky: show one random card
+        async function pickLuckyResult() {
+            try {
+                const sp = currentSearchParams();
+                const searchText = (sp.searchText && sp.searchText.trim() !== "") ? sp.searchText : "*";
+
+                const total = await getMatchingCount();
+                if (!total) { alert('No results to choose from.'); return; }
+
+                const skip = Math.floor(Math.random() * total);
+
+                const body = {
+                    search: searchText,
+                    top: 1,
+                    skip: skip,
+                    select: "thumbnail,city,description,number,street,region,countryCode,price,beds,baths,sqft,listingId,status,daysOnMarket",
+                    queryType: "simple"
+                };
+                if (sp.filter) body.filter = sp.filter;
+
+                const data = await searchPost(body);
+                if (!data || !data.value || !data.value.length) { alert('No result returned.'); return; }
+
+                const d = data.value[0];
+                const cardHtml = `
+                  <div class="col-xs-12 searchResults__result" style="outline:2px solid #f0ad4e; box-shadow:0 0 0 3px rgba(240,173,78,.35);">
+                    <div class="row">
+                      <div class="col-xs-12 col-sm-9 col-md-9">
+                        <h4>${d.city || ''}, ${d.region || ''} ${d.postCode || ''}</h4>
+                        <div class="text-muted">${(d.number || '')} ${(d.street || '')}</div>
+                        <div><strong>$ ${d.price || ''}</strong> — ${d.beds || 0} bd • ${d.baths || 0} ba • ${d.sqft || 0} sqft</div>
+                        <div class="resultDescription">${d.description || ''}</div>
+                        <div class="text-muted">Status: ${d.status || ''} • Days: ${d.daysOnMarket || ''}</div>
+                      </div>
+                    </div>
+                  </div>`;
+
+                // ensure lucky container exists
+                if (!document.getElementById(LUCKY_ID)) {
+                    const div = document.createElement('div');
+                    div.id = LUCKY_ID;
+                    div.className = "row";
+                    document.getElementById('results').insertAdjacentElement('beforebegin', div);
+                }
+
+                document.getElementById(LUCKY_ID).innerHTML = cardHtml;
+                $('#results, #pager').hide();
+                $('#' + LUCKY_ID).show();
+                $('#btnShowAll').show();
+            } catch (err) {
+                console.log('Lucky error:', err);
+            }
+        }
+
+        // Show All: restore the React list
+        document.getElementById('btnLucky').addEventListener('click', pickLuckyResult);
+        document.getElementById('btnShowAll').addEventListener('click', function () {
+            $('#' + LUCKY_ID).hide().empty();
+            $('#results, #pager').show();
+            $('#btnShowAll').hide();
+        });
+
+    </script>
+</body>
+</html>
